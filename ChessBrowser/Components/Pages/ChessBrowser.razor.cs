@@ -1,7 +1,10 @@
 ﻿using ChessBrowser.Components.Model;
 using Microsoft.AspNetCore.Components.Forms;
+using Microsoft.Extensions.Logging;
 using MySql.Data.MySqlClient;
 using System.Diagnostics;
+using System.Security.Policy;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace ChessBrowser.Components.Pages
 {
@@ -38,14 +41,15 @@ namespace ChessBrowser.Components.Pages
         private async Task InsertGameData(string[] PGNFileLines)
         {
             // This will build a connection string to your user's database on atr,
-            // assuimg you've filled in the credentials in the GUI
+            // assuming you've filled in the credentials in the GUI
             string connection = GetConnectionString();
 
-            // TODO:
             //   Parse the provided PGN data
             List<ChessGame> games = PgnParser.Parse(PGNFileLines);
 
-            //   We recommend creating separate libraries to represent chess data and load the file
+            Console.WriteLine("----- Game Inserting -----");
+            Console.WriteLine("Games: " + games.Count.ToString());
+
 
 
             using (MySqlConnection conn = new MySqlConnection(connection))
@@ -55,27 +59,95 @@ namespace ChessBrowser.Components.Pages
                     // Open a connection
                     conn.Open();
 
-                    // TODO:
-                    //   Iterate through your data and generate appropriate insert commands
+                    //   Iterate through data and generate appropriate insert commands
+                    for (int i = 0; i < games.Count; i++)
+                    {
 
-                    // TODO:
-                    //   Update the Progress member variable every time progress has been made
-                    //   (e.g. one iteration of your upload loop)
-                    //   This will update the progress bar in the GUI
-                    //   Its value should be an integer representing a percentage of completion
-                    Progress = 0;
+                        ChessGame game = games[i];
 
-                    // This tells the GUI to redraw after you update Progress (this should go inside your loop)
-                    await InvokeAsync(StateHasChanged);
+                        int whiteID = InsertPlayer(conn, game.White, game.WhiteElo);
+                        int blackID = InsertPlayer(conn, game.Black, game.BlackElo);
+                        int eID = InsertEvent(conn, game.Event, game.Site, game.Date);
+
+                        MySqlCommand command = conn.CreateCommand();
+                        command.CommandText = "Insert Into Games(Round, Result, Moves, BlackPlayer, WhitePlayer, eID) " +
+                            "Values(@round, @result, @moves, @bID, @wID, @eId); ";
+
+                        command.Parameters.AddWithValue("@round", game.Round);
+                        command.Parameters.AddWithValue("@eID", eID);
+                        command.Parameters.AddWithValue("@wID", whiteID);
+                        command.Parameters.AddWithValue("@bID", blackID);
+                        command.Parameters.AddWithValue("@result", game.Result);
+                        command.Parameters.AddWithValue("@moves", game.Moves);
+
+                        command.ExecuteNonQuery();
 
 
-                }
+                        // This tells the GUI to redraw after you update Progress (this should go inside your loop)
+                        Progress = (i / games.Count) * 100;
+                        await InvokeAsync(StateHasChanged);
+
+                    }
+                }   
                 catch (Exception e)
                 {
                     System.Diagnostics.Debug.WriteLine(e.Message);
                 }
             }
 
+        }
+
+        private int InsertPlayer(MySqlConnection conn, string playerName, int elo)
+        {
+            MySqlCommand command = conn.CreateCommand();
+            command.CommandText = "Insert Into Players(Name, Elo) " +
+                "Values(@name,@elo) " +
+                "On Duplicate Key Update Elo = " +
+                "If(@elo > Elo, @elo, Elo);";
+            command.Parameters.AddWithValue("@name", playerName);
+            command.Parameters.AddWithValue("@elo", elo);
+            command.ExecuteNonQuery();
+
+            MySqlCommand getID = conn.CreateCommand();
+            getID.CommandText = "Select pID from Players Where Name = @name;";
+            getID.Parameters.AddWithValue("@name", playerName);
+
+            int pID = 0;
+            using (MySqlDataReader reader = getID.ExecuteReader())
+            {
+                if (reader.Read())
+                {
+                    pID = reader.GetInt32(0);
+                }
+            }
+            return pID;
+        }
+
+        private int InsertEvent(MySqlConnection conn, string EventName, string Site, string Date)
+        {
+            MySqlCommand insert = conn.CreateCommand();
+            insert.CommandText = "Insert Ignore into Events(Name, Site, Date) Values (@name, @site, @date);";
+            insert.Parameters.AddWithValue("@name", EventName);
+            insert.Parameters.AddWithValue("@site", Site);
+            insert.Parameters.AddWithValue("@date", Date);
+            insert.ExecuteNonQuery();
+
+            int eID = 0;
+
+            MySqlCommand getID = conn.CreateCommand();
+            getID.CommandText = "Select eID from Events where Name = @name and Site = @site and Date = @date";
+            getID.Parameters.AddWithValue("@name", EventName);
+            getID.Parameters.AddWithValue("@site", Site);
+            getID.Parameters.AddWithValue("@date", Date);
+
+            using (MySqlDataReader reader = getID.ExecuteReader())
+            {
+                if (reader.Read())
+                {
+                    eID = reader.GetInt32(0);
+                }
+            }
+            return eID;
         }
 
 

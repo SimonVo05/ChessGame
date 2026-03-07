@@ -73,11 +73,13 @@ namespace ChessBrowser.Components.Model
                             break;
 
                         case "WhiteElo":
-                            game.WhiteElo = columnValue;
+                            int.TryParse(columnValue, out int eloWhite);
+                            game.WhiteElo = eloWhite;
                             break;
 
                         case "BlackElo":
-                            game.BlackElo = columnValue;
+                            int.TryParse(columnValue, out int eloBlack);
+                            game.BlackElo = eloBlack;
                             break;
 
                         case "Result":

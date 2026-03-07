@@ -12,7 +12,7 @@
         public string Black { get; set; } = "";
         public string Result { get; set; } = "";
         public string Moves { get; set; } = "";
-        public string WhiteElo { get; set; } = "";
-        public string BlackElo { get; set; } = "";
+        public int WhiteElo { get; set; } = 0;
+        public int BlackElo { get; set; } = 0;
     }
 }
