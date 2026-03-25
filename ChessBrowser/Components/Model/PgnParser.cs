@@ -83,11 +83,11 @@ namespace ChessBrowser.Components.Model
                             break;
 
                         case "Result":
-                            if (columnValue == "1 - 0")
+                            if (columnValue == "1-0")
                             {
                                 game.Result = "W";
                             }
-                            else if (columnValue == "0 - 1")
+                            else if (columnValue == "0-1")
                             {
                                 game.Result = "B";
                             }
@@ -107,19 +107,6 @@ namespace ChessBrowser.Components.Model
                     {
                         game.Moves = move.ToString();
                         games.Add(game);
-
-                        Console.WriteLine("----- Game Parsed -----");
-                        Console.WriteLine("Event: " + game.Event);
-                        Console.WriteLine("Site: " + game.Site);
-                        Console.WriteLine("Date: " + game.Date);
-                        Console.WriteLine("Round: " + game.Round);
-                        Console.WriteLine("White: " + game.White);
-                        Console.WriteLine("Black: " + game.Black);
-                        Console.WriteLine("WhiteElo: " + game.WhiteElo);
-                        Console.WriteLine("BlackElo: " + game.BlackElo);
-                        Console.WriteLine("Result: " + game.Result);
-                        Console.WriteLine("Moves: " + game.Moves);
-                        Console.WriteLine();
 
                         move.Clear();
                         game = null;

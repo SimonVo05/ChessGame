@@ -2,8 +2,12 @@
 using Microsoft.AspNetCore.Components.Forms;
 using Microsoft.Extensions.Logging;
 using MySql.Data.MySqlClient;
+using MySqlX.XDevAPI.Common;
 using System.Diagnostics;
+using System.Drawing.Printing;
+using System.Net.Quic;
 using System.Security.Policy;
+using static Org.BouncyCastle.Crypto.Engines.SM2Engine;
 using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace ChessBrowser.Components.Pages
@@ -44,13 +48,10 @@ namespace ChessBrowser.Components.Pages
             // assuming you've filled in the credentials in the GUI
             string connection = GetConnectionString();
 
+            Console.WriteLine("called");
+
             //   Parse the provided PGN data
             List<ChessGame> games = PgnParser.Parse(PGNFileLines);
-
-            Console.WriteLine("----- Game Inserting -----");
-            Console.WriteLine("Games: " + games.Count.ToString());
-
-
 
             using (MySqlConnection conn = new MySqlConnection(connection))
             {
@@ -84,7 +85,7 @@ namespace ChessBrowser.Components.Pages
 
 
                         // This tells the GUI to redraw after you update Progress (this should go inside your loop)
-                        Progress = (i / games.Count) * 100;
+                        Progress = (int)(((double)(i) / games.Count) * 100);
                         await InvokeAsync(StateHasChanged);
 
                     }
@@ -97,6 +98,13 @@ namespace ChessBrowser.Components.Pages
 
         }
 
+        /// <summary>
+        /// Insert Player and get PlayerID
+        /// </summary>
+        /// <param name="conn">Current Connection</param>
+        /// <param name="playerName">Player Name</param>
+        /// <param name="elo">current Elo</param>
+        /// <returns></returns>
         private int InsertPlayer(MySqlConnection conn, string playerName, int elo)
         {
             MySqlCommand command = conn.CreateCommand();
@@ -123,6 +131,14 @@ namespace ChessBrowser.Components.Pages
             return pID;
         }
 
+        /// <summary>
+        /// Insert Event and get EventID
+        /// </summary>
+        /// <param name="conn"> Connection </param>
+        /// <param name="EventName"> Event Name </param>
+        /// <param name="Site"> Site name</param>
+        /// <param name="Date"> date of the event</param>
+        /// <returns></returns>
         private int InsertEvent(MySqlConnection conn, string EventName, string Site, string Date)
         {
             MySqlCommand insert = conn.CreateCommand();
@@ -185,8 +201,92 @@ namespace ChessBrowser.Components.Pages
                     // Open a connection
                     conn.Open();
 
-                    // TODO:
                     //   Generate and execute an SQL command,
+                    MySqlCommand command = conn.CreateCommand();
+
+                    string query = "Select Wp.Name, Wp.Elo, Bp.Name, Bp.Elo, G.Result, G.Moves, E.Name, E.Site, E.Date " +
+                        "From Games G Join Events E ON G.eID = E.eID " +
+                        "Join Players Wp on G.WhitePlayer = Wp.pID " + 
+                        "Join Players Bp on G.BlackPlayer = Bp.pID ";
+
+
+                    if (opening != "")
+                    {
+                        query += "and G.Moves Like @opening ";
+                        command.Parameters.AddWithValue("@opening", opening + "%");
+                    }
+
+                    if (white != "")
+                    {
+                        query += "and Wp.Name = @white ";
+                        command.Parameters.AddWithValue("@white", white);
+                    }
+
+                    if (black != "")
+                    {
+                        query += "and Bp.Name = @black ";
+                        command.Parameters.AddWithValue("@black", black);
+                    }
+                    
+                    if (winner != "")
+                    {
+                        if (winner == "W")
+                        {
+                            query += "and G.Result = \"W\" ";
+                        }
+                        else if (winner == "B")
+                        {
+                            query += "and G.Result = \"B\" ";
+                        }
+                        else
+                        {
+                            query += "and G.Result = \"D\" ";
+                        }
+                    }
+
+                    if (useDate)
+                    {
+                        query += "and E.Date >= @startDate and E.Date <= @endDate ";
+                        command.Parameters.AddWithValue("@startDate", start.ToString("yyyy-MM-dd"));
+                        command.Parameters.AddWithValue("@endDate", end.ToString("yyyy-MM-dd"));
+                    }
+
+                    query += ";";
+                    command.CommandText = query;
+
+                    Console.WriteLine(query);
+
+                    using (MySqlDataReader reader = command.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            string White = reader.GetString(0);
+                            string WElo = reader.GetInt32(1).ToString();
+                            string Black = reader.GetString(2);
+                            string BElo = reader.GetInt32(3).ToString();
+                            string Result = reader.GetString(4);
+                            string Moves = reader.GetString(5);
+                            string EName = reader.GetString(6);
+                            string Site = reader.GetString(7);
+                            string Date = reader.GetDateTime(8).ToString();
+
+                            parsedResult += "Event: " + EName + "\n" +
+                                "Site: " + Site + "\n" +
+                                "Date: " + Date + "\n" +
+                                "White: " + White + " (" + WElo + ")\n" +
+                                "Black: " + Black + " (" + BElo + ")\n" +
+                                "Result: " + Result + "\n";
+
+                            if (showMoves)
+                            {
+                                parsedResult += Moves + "\n";
+                            }
+
+                            parsedResult += "\n";
+                            numRows++;
+                        }
+                    }
+
                     //   then parse the results into an appropriate string and return it.
                 }
                 catch (Exception e)
